@@ -18,9 +18,7 @@ public record CreateScheduleRequest(
 ) {
 
     public record MedicineInput(
-            @NotBlank String medicineName,
-            String medicineDescription,
-            String medicineImage,
+            @NotBlank String medicineId,
             // per-medicine schedule embedded here to avoid cross-map id mismatch
             @NotNull HashMap<@NotNull DayOfWeek, @NotNull HashMap<@NotNull LocalTime, @NotBlank String>> schedule
     ) {}

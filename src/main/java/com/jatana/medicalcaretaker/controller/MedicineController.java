@@ -1,13 +1,11 @@
 package com.jatana.medicalcaretaker.controller;
 
+import com.jatana.medicalcaretaker.model.dto.MedicineResponse;
 import com.jatana.medicalcaretaker.model.dto.medicineHistory.MedicineHistoryResponse;
 import com.jatana.medicalcaretaker.model.dto.medicineWiseSchedule.MedicineScheduleResponse;
 import com.jatana.medicalcaretaker.model.dto.dayWiseSchedule.DateSchedule;
 import com.jatana.medicalcaretaker.model.dto.medicineList.MedicineResponseListItem;
-import com.jatana.medicalcaretaker.model.dto.request.CreateScheduleRequest;
-import com.jatana.medicalcaretaker.model.dto.request.UpdateScheduleRequest;
-import com.jatana.medicalcaretaker.model.dto.request.UpdateMedicineData;
-import com.jatana.medicalcaretaker.model.dto.request.UserActionRequest;
+import com.jatana.medicalcaretaker.model.dto.request.*;
 import com.jatana.medicalcaretaker.service.MedicineService;
 import com.jatana.medicalcaretaker.service.MyUserDetailsService;
 import org.springframework.http.HttpStatus;
@@ -35,6 +33,40 @@ public class MedicineController {
         this.medicineService = medicineService;
         this.userDetailsService = userDetailsService;
     }
+
+    @PostMapping("/medicine")
+    @PreAuthorize("hasAnyRole('CARETAKER', 'CARERECIEVER', 'ADMIN')")
+    public ResponseEntity<String> addMedicineData(@RequestBody @jakarta.validation.Valid AddMedicineRequest request) {
+        try {
+            String actorUserId = userDetailsService.getAuthenticatedUserId();
+            medicineService.addMedicine(request, actorUserId);
+            return new ResponseEntity<>("Medicine data added successfully", HttpStatus.OK);
+        } catch (AccessDeniedException e) {
+            return new ResponseEntity<>("Access denied: " + e.getMessage(), HttpStatus.FORBIDDEN);
+        } catch (IllegalArgumentException e) {
+            return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);
+        } catch (Exception e) {
+            return new ResponseEntity<>(e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @GetMapping("/medicine")
+    @PreAuthorize("hasAnyRole('CARETAKER', 'CARERECIEVER', 'ADMIN')")
+    public ResponseEntity<?> getMedicine(@RequestParam String userId, @RequestParam String medicineId) {
+        try {
+            String actorUserId = userDetailsService.getAuthenticatedUserId();
+            MedicineResponse res = medicineService.getMedicine(userId, actorUserId, medicineId);
+            return new ResponseEntity<>(res, HttpStatus.OK);
+        } catch (AccessDeniedException e) {
+            return new ResponseEntity<>("Access denied: " + e.getMessage(), HttpStatus.FORBIDDEN);
+        } catch (IllegalArgumentException e) {
+            return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);
+        } catch (Exception e) {
+            return new ResponseEntity<>(e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+
 
     @GetMapping("/medicines")
     @PreAuthorize("hasAnyRole('CARETAKER', 'CARERECIEVER', 'ADMIN')")
