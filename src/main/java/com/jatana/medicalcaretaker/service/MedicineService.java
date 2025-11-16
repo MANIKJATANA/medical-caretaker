@@ -4,6 +4,7 @@ import com.jatana.medicalcaretaker.model.Medicine;
 import com.jatana.medicalcaretaker.model.MedicineHistory;
 import com.jatana.medicalcaretaker.model.MedicineSchedule;
 import com.jatana.medicalcaretaker.model.ScheduleItem;
+import com.jatana.medicalcaretaker.model.dto.MedicineResponse;
 import com.jatana.medicalcaretaker.model.dto.medicineHistory.MedicineDateSchedule;
 import com.jatana.medicalcaretaker.model.dto.medicineHistory.MedicineHistoryResponse;
 import com.jatana.medicalcaretaker.model.dto.medicineWiseSchedule.MedicineScheduleResponse;
@@ -17,6 +18,7 @@ import com.jatana.medicalcaretaker.model.medicineEnums.ScheduleStatus;
 import com.jatana.medicalcaretaker.repo.MedicineServiceRepo;
 import com.jatana.medicalcaretaker.repo.MedicineScheduleRepo;
 import com.jatana.medicalcaretaker.repo.MedicineHistoryRepo;
+import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -208,7 +210,7 @@ public class MedicineService {
             HashMap<LocalDateTime, HashMap<String, MedicineHistory>> medicineHistoryMap = getMedicineHistoryMap(medicineHistory);
 
             List<Dose> doseList = new ArrayList<>();
-            updateDoseListFromMedicineHashMap(userId, actorUserId, doseList, medicineHistoryMap);
+            updateDoseListFromMedicineHashMap(userId, doseList, medicineHistoryMap);
             doseList.sort(Comparator.comparing(Dose::time));
 
             return new DateSchedule(date,userId,doseList);
@@ -276,7 +278,7 @@ public class MedicineService {
             HashMap<LocalDateTime, HashMap<String, MedicineHistory>> medicineHistoryMap = getMedicineHistoryMap(medicineHistory);
 
 
-            updateDoseListFromMedicineHashMap(userId, actorUserId, doseList, medicineHistoryMap);
+            updateDoseListFromMedicineHashMap(userId, doseList, medicineHistoryMap);
 
 
             doseList.sort(Comparator.comparing(Dose::time));
@@ -286,7 +288,7 @@ public class MedicineService {
 
     }
 
-    private void updateDoseListFromMedicineHashMap(String userId, String actorUserId, List<Dose> doseList, HashMap<LocalDateTime, HashMap<String, MedicineHistory>> medicineHistoryMap) {
+    private void updateDoseListFromMedicineHashMap(String userId, List<Dose> doseList, HashMap<LocalDateTime, HashMap<String, MedicineHistory>> medicineHistoryMap) {
         for(LocalDateTime time : medicineHistoryMap.keySet()){
             HashMap<String, MedicineHistory> medicineHistoryMapTime = medicineHistoryMap.get(time);
             List<DoseItem> doseItemList = new ArrayList<>();
@@ -394,19 +396,13 @@ public class MedicineService {
         List<MedicineSchedule> medicineScheduleList = new ArrayList<>();
 
         for (CreateScheduleRequest.MedicineInput mi : inputs) {
-            Medicine medicine = Medicine.builder()
-                    .userId(userId)
-                    .name(mi.medicineName())
-                    .description(mi.medicineDescription())
-                    .imageUrl(mi.medicineImage())
-                    .state(MedicineState.ACTIVE)
-                    .createdAt(LocalDateTime.now())
-                    .updatedAt(LocalDateTime.now())
-                    .createdBy(actorUserId)
-                    .updatedBy(actorUserId)
-                    .build();
 
-            Medicine saved = medicineRepo.save(medicine);
+
+            Optional<Medicine> savedOptional = medicineRepo.findByIdAndUserId(mi.medicineId(), userId);
+            if(savedOptional.isEmpty()){
+                throw new IllegalArgumentException("Medicine with id not found" );
+            }
+            Medicine saved = savedOptional.get();
 
             MedicineSchedule medicineSchedule = new MedicineSchedule();
             medicineSchedule.setMedicineId(saved.getId());
@@ -479,8 +475,7 @@ public class MedicineService {
         // Authorize access
         userDetailsService.authorizeAccess(actorUserId, request.userId());
         
-        // TODO: Implement update medicine data logic
-        // This method should:
+
 
         Optional<Medicine> md = medicineRepo.findByIdAndUserId(request.medicineId(), request.userId());
         if(md.isEmpty()){
@@ -498,5 +493,44 @@ public class MedicineService {
 
         MedicineHistory medicineHistory = new MedicineHistory(request.userId(), request.medicineId(), request.action(), request.actionDateTime(), request.actualDateTime(), actorUserId);
         medicineHistoryRepo.save(medicineHistory);
+    }
+
+    public void addMedicine(@Valid AddMedicineRequest request, String actorUserId) {
+        // Authorize access
+        userDetailsService.authorizeAccess(actorUserId, request.userId());
+        logger.info("Creating medicine from medicine request: {}", request);
+
+        Medicine medicine = Medicine
+                .builder()
+                .userId(request.userId())
+                .name(request.medicineName())
+                .description(request.medicineDescription())
+                .imageUrl(request.medicineImage())
+                .state(request.state())
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .createdBy(actorUserId)
+                .updatedBy(actorUserId)
+                .build();
+
+
+        logger.info("Saving medicine with name {}to db", medicine.getName());
+
+        medicineRepo.save(medicine);
+    }
+
+    public MedicineResponse getMedicine(String userId, String actorUserId, String medicineId) {
+        userDetailsService.authorizeAccess(actorUserId, userId);
+
+        Optional<Medicine> medicineOptional = medicineRepo.findById(medicineId);
+        if(medicineOptional.isEmpty()){
+            throw new IllegalArgumentException("Medicine not found");
+        }
+        Medicine medicine = medicineOptional.get();
+        if(!medicine.getUserId().equals(userId)){
+            throw new IllegalArgumentException("User not authorized to view medicine " + medicineId);
+        }
+        return new MedicineResponse(medicineId,userId,medicine.getName(),medicine.getDescription(),medicine.getImageUrl(),medicine.getState());
+
     }
 }

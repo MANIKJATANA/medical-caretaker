@@ -32,6 +32,11 @@ public class UserController {
         this.service = service;
     }
 
+    @PostMapping("/login")
+    public ResponseEntity<String> checkCredentials(){
+        return new ResponseEntity<>("Logged in successfully",HttpStatus.OK);
+    }
+
     @PostMapping("/create")
     public ResponseEntity<Object> createUser(@RequestBody @Valid CreateUserRequest request) {
         try {
